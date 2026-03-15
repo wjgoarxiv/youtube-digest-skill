@@ -1,7 +1,14 @@
 ---
 name: youtube-digest
-description: "Extracts transcripts from YouTube videos and produces structured digests with TL;DR, key takeaways, core assertions with timestamps, topic timeline, and notable quotes. Builds on markitdown's raw transcript extraction by adding LLM-driven analysis and structured output.\nTRIGGER when: user pastes a YouTube URL and wants a summary, digest, or analysis of the video content; user asks \"what is this video about\"; user wants key points or takeaways from a YouTube video; user wants to decide whether a video is worth watching; user asks to summarize a YouTube talk, lecture, podcast, or interview; user wants structured notes from a video; user asks to digest or break down a YouTube video; user mentions a YouTube link and asks for insights.\nDO NOT TRIGGER when: user just wants the raw transcript text without analysis (use markitdown); user wants to download the video file; user wants to convert a local video or audio file to text."
-allowed-tools: [Read, Write, Edit, Bash]
+description: |
+  Extracts transcripts from YouTube videos and produces structured digests with TL;DR, key takeaways, core assertions with timestamps, topic timeline, and notable quotes. Builds on markitdown's raw transcript extraction by adding LLM-driven analysis and structured output.
+  TRIGGER when: user pastes a YouTube URL and wants a summary, digest, or analysis of the video content; user asks "what is this video about"; user wants key points or takeaways from a YouTube video; user wants to decide whether a video is worth watching; user asks to summarize a YouTube talk, lecture, podcast, or interview; user wants structured notes from a video; user asks to digest or break down a YouTube video; user mentions a YouTube link and asks for insights.
+  DO NOT TRIGGER when: user just wants the raw transcript text without analysis (use markitdown); user wants to download the video file; user wants to convert a local video or audio file to text.
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
 ---
 
 # YouTube Video Digest

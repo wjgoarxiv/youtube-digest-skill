@@ -36,6 +36,13 @@
 
 ## 빠른 시작
 
+### Zip 업로드 (Claude 앱)
+
+1. 이 저장소에서 [`youtube-digest.zip`](./youtube-digest.zip) 다운로드
+2. **Claude 앱** → **설정** → **스킬** → **스킬 업로드** 열기
+3. zip 파일 업로드
+4. Python 의존성 설치: `pip install youtube-transcript-api`
+
 ### 복사-붙여넣기 설치
 
 > [!TIP]
