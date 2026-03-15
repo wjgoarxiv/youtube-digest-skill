@@ -32,13 +32,6 @@
 
 ## Quick Start
 
-### Zip Upload (Claude App)
-
-1. Download [`youtube-digest.zip`](./youtube-digest.zip) from this repo
-2. Open **Claude App** → **Settings** → **Skills** → **Upload Skill**
-3. Upload the zip file
-4. Install the Python dependency: `pip install youtube-transcript-api`
-
 ### Copy-Paste Install
 
 > [!TIP]
