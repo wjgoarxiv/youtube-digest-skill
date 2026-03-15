@@ -32,15 +32,15 @@ Before starting, detect your runtime capabilities and select the appropriate tie
 ```
 Check 1: Can I run Bash + Python?
   YES → Tier 1 (fetch_transcript.py -- works WITHOUT pip packages)
-  NO  → Check 2: Can I use WebFetch?
-    YES → Tier 2 (WebFetch-based extraction)
+  NO  → Check 2: Can I use WebFetch or WebSearch?
+    YES → Tier 2 (Web-based extraction -- see strategy below)
     NO  → Tier 3 (User-provided transcript -- last resort)
 ```
 
 | Tier | Environment | Capabilities | Extraction Method |
 |------|-------------|--------------|-------------------|
-| **Tier 1** | Claude Code, Codex CLI, any terminal | Bash + Python (stdlib only, no pip needed) | `fetch_transcript.py` uses `urllib` + `xml.etree` |
-| **Tier 2** | Claude App (Web) with web access | WebFetch | Fetch YouTube page HTML → extract captionTracks → fetch timedtext XML |
+| **Tier 1** | Claude Code, Codex CLI, any terminal | Bash + Python (stdlib only, no pip needed) | `fetch_transcript.py` uses InnerTube ANDROID API via `urllib` + `xml.etree` |
+| **Tier 2** | Claude App (Web) with web access | WebFetch + WebSearch | `noembed.com` for metadata → WebSearch for transcript → WebFetch results |
 | **Tier 3** | Fully restricted (no network at all) | Text generation only | Ask user to paste transcript (last resort) |
 
 ## How It Works
@@ -57,12 +57,12 @@ Three-stage pipeline, with the extraction stage adapting to the environment:
 
 **Stage 1 -- Extract (environment-dependent):**
 - **Tier 1:** Run `scripts/fetch_transcript.py` -- works with **zero pip packages**. Uses Python stdlib (`urllib.request` + `xml.etree`) to fetch the YouTube page, extract `captionTracks`, and parse the timedtext XML. If `youtube-transcript-api` or `yt-dlp` are installed, uses them for enhanced extraction, but they are optional.
-- **Tier 2:** Use WebFetch to replicate the same extraction:
-  1. `WebFetch("https://www.youtube.com/watch?v=VIDEO_ID")` → get page HTML
-  2. Find `"captionTracks":` in the HTML → extract the `baseUrl` for the preferred language
-  3. `WebFetch(baseUrl)` → get transcript XML
-  4. Parse `<text start="..." dur="...">content</text>` elements into segments
-  5. Extract metadata from page: `"title"`, `"ownerChannelName"`, `"lengthSeconds"`, `"uploadDate"`
+- **Tier 2:** YouTube domain is often blocked in sandboxed environments. Use this multi-step fallback:
+  1. **Get metadata** (non-YouTube domain): `WebFetch("https://noembed.com/embed?url=https://www.youtube.com/watch?v=VIDEO_ID")` → returns JSON with `title` and `author_name`
+  2. **Search for transcript**: `WebSearch('"VIDEO_TITLE" full transcript')` or `WebSearch('"VIDEO_TITLE" transcript text')`
+  3. **Fetch transcript from search results**: `WebFetch` the most promising result (blog posts, study sites, and transcript hosting sites often re-publish YouTube transcripts)
+  4. If step 2-3 fail, try: `WebSearch('youtube VIDEO_ID transcript')` with the raw video ID
+  5. Extract whatever timestamped or plain text is available from the fetched pages
 - **Tier 3 (last resort):** Ask the user to provide the transcript. Suggest: (1) Click "Show transcript" on YouTube, (2) Use an online transcript extractor, (3) Paste any text from the video.
 
 **Stage 2 -- Analyze:** Read the extracted content and produce the structured digest. Synthesize, identify themes, extract claims, build the timeline.
@@ -134,19 +134,24 @@ Summarize this video: https://www.youtube.com/watch?v=VIDEO_ID
 3. Produce the digest following the template above
 4. Save as `video_title_digest.md`
 
-#### Tier 2 Steps (WebFetch)
-1. Fetch the YouTube page:
+#### Tier 2 Steps (WebFetch + WebSearch -- YouTube domain blocked)
+1. Get video metadata from a non-YouTube domain:
    ```
-   WebFetch("https://www.youtube.com/watch?v=VIDEO_ID")
+   WebFetch("https://noembed.com/embed?url=https://www.youtube.com/watch?v=VIDEO_ID")
    ```
-2. In the returned HTML, find `"captionTracks":` and extract the `baseUrl` for the desired language
-3. Fetch the transcript XML:
+   Returns JSON: `{"title": "...", "author_name": "..."}`
+2. Search for transcript text using the video title:
    ```
-   WebFetch(baseUrl)
+   WebSearch('"VIDEO TITLE" full transcript')
    ```
-4. Parse the `<text start="..." dur="...">content</text>` elements into timestamped segments
-5. Extract metadata from the page HTML: `"title"`, `"ownerChannelName"`, `"lengthSeconds"`, `"uploadDate"`
-6. Produce the digest from the extracted data
+3. WebFetch the most promising search result to extract transcript text
+4. If no transcript found, try broader searches:
+   ```
+   WebSearch('VIDEO_ID youtube transcript')
+   WebSearch('"VIDEO TITLE" subtitles text')
+   ```
+5. Produce the digest from whatever text is gathered
+6. Note in header: `*Digest generated via web search. Timestamps may be unavailable.*`
 
 #### Tier 3 Steps (No Network -- last resort)
 1. Tell the user:
