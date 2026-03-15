@@ -1,0 +1,71 @@
+{
+  "skill_name": "youtube-digest",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Summarize this YouTube video for me: https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "expected_output": "A structured digest with TL;DR, key takeaways, topic timeline, and notable quotes in clean Markdown with video metadata header.",
+      "files": [],
+      "expectations": [
+        "Runs fetch_transcript.py to extract transcript and metadata from the URL",
+        "Output includes a TL;DR section with 1-2 sentence summary",
+        "Output includes a Key Takeaways section with 3-7 bullet points",
+        "Output includes a Topic Timeline table with timestamps",
+        "Output includes video metadata header (title, channel, duration)",
+        "Output is saved as a .md file"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I found this long lecture on transformer architectures: https://www.youtube.com/watch?v=EXAMPLE_ID. I only have 5 minutes -- is it worth watching for someone doing NLP fine-tuning?",
+      "expected_output": "A triage-mode digest with TL;DR, filtered takeaways weighted toward NLP fine-tuning, and a clear worth-watching verdict.",
+      "files": [],
+      "expectations": [
+        "Produces a TL;DR that directly addresses whether the video is worth watching",
+        "Key Takeaways are filtered toward NLP fine-tuning relevance",
+        "Core Assertions section identifies main technical claims with timestamps",
+        "Includes a relevance verdict (worth watching / skip)",
+        "Does not hallucinate content not present in the transcript"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Digest this video and save it to my Obsidian vault at ~/vault/YouTube/: https://www.youtube.com/watch?v=EXAMPLE_ID2. Tag it with 'machine-learning' and 'tutorial'.",
+      "expected_output": "An Obsidian-compatible Markdown file with YAML frontmatter containing title, channel, date, duration, url, and specified tags, saved to the vault path.",
+      "files": [],
+      "expectations": [
+        "Output file has YAML frontmatter with title, channel, date, duration, url fields",
+        "Frontmatter includes tags array with 'machine-learning' and 'tutorial'",
+        "File is saved to ~/vault/YouTube/ with a meaningful filename",
+        "Body contains the full digest structure (TL;DR, Key Takeaways, Timeline, etc.)",
+        "Frontmatter includes 'type: youtube-digest'"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I have two videos about climate change policy. Digest both and tell me where they agree and disagree:\nhttps://www.youtube.com/watch?v=CLIMATE_1\nhttps://www.youtube.com/watch?v=CLIMATE_2",
+      "expected_output": "Individual digests for each video followed by a comparison section with agreements, disagreements, and unique contributions.",
+      "files": [],
+      "expectations": [
+        "Produces a separate digest for each video with all standard sections",
+        "Includes a comparison section after the individual digests",
+        "Comparison identifies at least one agreement and one disagreement",
+        "Each video's claims are attributed correctly and not mixed up",
+        "Comparison references specific timestamps from each video"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "https://youtu.be/SHORT_ID -- what are the main claims? I want to fact-check some for a blog post.",
+      "expected_output": "A digest with detailed Core Assertions section, each claim categorized and timestamped.",
+      "files": [],
+      "expectations": [
+        "Handles the shortened youtu.be URL format correctly",
+        "Core Assertions section is more detailed than standard",
+        "Each claim is categorized (opinion, anecdote, cited statistic, etc.)",
+        "Timestamps are included for each claim",
+        "Includes a disclaimer that claims should be independently verified"
+      ]
+    }
+  ]
+}
