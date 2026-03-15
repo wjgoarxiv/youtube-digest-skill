@@ -9,6 +9,8 @@ allowed-tools:
   - Write
   - Edit
   - Bash
+  - WebFetch
+  - WebSearch
 ---
 
 # YouTube Video Digest
@@ -23,23 +25,46 @@ Transforms YouTube videos into structured, actionable knowledge. Where markitdow
 - **Study notes:** Create PKM-ready notes (Obsidian, Notion) from educational videos
 - **Multi-video comparison:** Compare key points across 2-5 related videos
 
+## Environment Detection
+
+Before starting, detect your runtime capabilities and select the appropriate tier:
+
+```
+Check 1: Can I run Bash commands?
+  YES → Check 2: Can I access the network? (try: pip install --dry-run youtube-transcript-api)
+    YES → Tier 1 (Full Pipeline)
+    NO  → Tier 3 (User-Provided Transcript)
+  NO  → Check 2: Can I use WebFetch or WebSearch?
+    YES → Tier 2 (Web-Based Extraction)
+    NO  → Tier 3 (User-Provided Transcript)
+```
+
+| Tier | Environment | Capabilities | Extraction Method |
+|------|-------------|--------------|-------------------|
+| **Tier 1** | Claude Code (Mac/Linux) | Bash + Network + pip | `fetch_transcript.py` |
+| **Tier 2** | Claude App (Web), some sandboxed CLIs | WebFetch or WebSearch | Fetch YouTube page or search for video content |
+| **Tier 3** | Claude App (Mobile), restricted sandboxes | Text generation only | Ask user to paste transcript or video details |
+
 ## How It Works
 
-Three-stage pipeline:
+Three-stage pipeline, with the extraction stage adapting to the environment:
 
 ```
 [YouTube URL] --> [Extract] --> [Analyze] --> [Format]
                     |               |             |
-              fetch_transcript.py  Claude      Markdown
-              (transcript +      (summarize,    output
-               metadata)         structure)
+              Tier 1: script   Claude LLM     Markdown
+              Tier 2: web                      output
+              Tier 3: user
 ```
 
-**Stage 1 -- Extract:** Run `scripts/fetch_transcript.py` to get timestamped transcript segments and video metadata (title, channel, duration, date). Uses `youtube-transcript-api` with `yt-dlp` for metadata. Falls back to `markitdown` if primary method fails.
+**Stage 1 -- Extract (environment-dependent):**
+- **Tier 1:** Run `scripts/fetch_transcript.py` to get timestamped transcript segments and video metadata. Uses `youtube-transcript-api` with `yt-dlp` for metadata. Falls back to `markitdown` if primary method fails.
+- **Tier 2:** Use WebFetch on the YouTube URL to extract page content (title, description, any available captions). Supplement with WebSearch for additional context about the video.
+- **Tier 3:** Ask the user to provide the transcript. Suggest these sources: (1) Click "Show transcript" on the YouTube video page, (2) Use a free online transcript extractor, (3) Paste any text they have from the video.
 
-**Stage 2 -- Analyze:** Read the extracted JSON and produce the structured digest. This is the value-add over raw transcript -- synthesize, identify themes, extract claims, build the timeline.
+**Stage 2 -- Analyze:** Read the extracted content and produce the structured digest. Synthesize, identify themes, extract claims, build the timeline.
 
-**Stage 3 -- Format:** Write the final Markdown, optionally with Obsidian YAML frontmatter.
+**Stage 3 -- Format:** Output the final Markdown, optionally with Obsidian YAML frontmatter.
 
 ## Digest Output Structure
 
@@ -97,14 +122,34 @@ User provides a YouTube URL:
 Summarize this video: https://www.youtube.com/watch?v=VIDEO_ID
 ```
 
-Steps:
-1. Run the extraction script:
+#### Tier 1 Steps (Bash + Network)
+1. Ensure dependencies are installed:
+   ```bash
+   pip install youtube-transcript-api 2>/dev/null || true
+   ```
+2. Run the extraction script:
    ```bash
    python scripts/fetch_transcript.py "https://www.youtube.com/watch?v=VIDEO_ID" -o /tmp/transcript.json
    ```
-2. Read the JSON output
-3. Produce the digest following the template above
-4. Save as `video_title_digest.md`
+3. Read the JSON output
+4. Produce the digest following the template above
+5. Save as `video_title_digest.md`
+
+#### Tier 2 Steps (WebFetch / WebSearch)
+1. Use WebFetch to load the YouTube video page and extract any available content (title, description, chapters)
+2. Use WebSearch to find transcripts, summaries, or discussions about the video (search: `"VIDEO_TITLE" transcript` or `youtube VIDEO_ID transcript`)
+3. Combine all gathered content
+4. Produce the digest -- note in the header: `*Digest generated via web extraction. Timestamps may be approximate.*`
+
+#### Tier 3 Steps (No Tools Available)
+1. Tell the user:
+   > I don't have direct access to YouTube in this environment. To create a digest, I need the transcript. You can get it by:
+   > 1. **YouTube app/web:** Open the video → click `···` (More) → **Show transcript** → copy all text
+   > 2. **Online tool:** Search "YouTube transcript extractor" and paste the video URL
+   > 3. **Paste anything you have:** Even partial notes or a description will work -- I'll do my best
+2. Once the user provides text, produce the digest from that content
+3. Omit timestamps if they are not present in the provided text
+4. Note in the header: `*Digest generated from user-provided transcript.*`
 
 ### Triage (Is It Worth Watching?)
 
@@ -136,7 +181,7 @@ When the user specifies a topic of interest (e.g., "I only care about the part a
 ### Multiple Videos (2-5 URLs)
 
 When the user provides multiple URLs:
-1. Run `fetch_transcript.py` for each URL
+1. Extract content for each URL using the appropriate tier
 2. Produce individual digests for each
 3. Add a **Comparison** section at the end:
    - Points of agreement
@@ -147,12 +192,13 @@ When the user provides multiple URLs:
 
 | Situation | Handling |
 |-----------|----------|
-| **No transcript available** | Report clearly. Suggest the user try a different video. |
+| **No transcript available** | Report clearly. Suggest the user try a different video. In Tier 2/3, suggest the user manually copy the transcript. |
 | **Auto-generated captions** | Add a quality warning in the output header. |
-| **Non-English video** | youtube-transcript-api supports multiple languages. Note the language in the header. |
-| **Very long videos (3+ hrs)** | The script chunks the transcript. Warn that timestamps may be less precise. |
+| **Non-English video** | youtube-transcript-api supports multiple languages. Note the language in the header. In Tier 2/3, ask the user to specify the language. |
+| **Very long videos (3+ hrs)** | The script chunks the transcript. Warn that timestamps may be less precise. In Tier 3, warn the user that pasting may be impractical and suggest using a transcript extractor tool. |
 | **Very short videos (<1 min)** | Skip the Timeline section. Produce only TL;DR + Key Takeaways. |
 | **Music videos / no speech** | Detect short transcript relative to duration. Produce minimal digest from metadata only. |
+| **Restricted environment (no Bash/Network)** | Automatically fall back to Tier 2 or Tier 3. Never report an error without offering the fallback path. |
 
 ## Dependencies
 
