@@ -30,20 +30,18 @@ Transforms YouTube videos into structured, actionable knowledge. Where markitdow
 Before starting, detect your runtime capabilities and select the appropriate tier:
 
 ```
-Check 1: Can I run Bash commands?
-  YES → Check 2: Can I access the network? (try: pip install --dry-run youtube-transcript-api)
-    YES → Tier 1 (Full Pipeline)
-    NO  → Tier 3 (User-Provided Transcript)
-  NO  → Check 2: Can I use WebFetch or WebSearch?
-    YES → Tier 2 (Web-Based Extraction)
-    NO  → Tier 3 (User-Provided Transcript)
+Check 1: Can I run Bash + Python?
+  YES → Tier 1 (fetch_transcript.py -- works WITHOUT pip packages)
+  NO  → Check 2: Can I use WebFetch?
+    YES → Tier 2 (WebFetch-based extraction)
+    NO  → Tier 3 (User-provided transcript -- last resort)
 ```
 
 | Tier | Environment | Capabilities | Extraction Method |
 |------|-------------|--------------|-------------------|
-| **Tier 1** | Claude Code (Mac/Linux) | Bash + Network + pip | `fetch_transcript.py` |
-| **Tier 2** | Claude App (Web), some sandboxed CLIs | WebFetch or WebSearch | Fetch YouTube page or search for video content |
-| **Tier 3** | Claude App (Mobile), restricted sandboxes | Text generation only | Ask user to paste transcript or video details |
+| **Tier 1** | Claude Code, Codex CLI, any terminal | Bash + Python (stdlib only, no pip needed) | `fetch_transcript.py` uses `urllib` + `xml.etree` |
+| **Tier 2** | Claude App (Web) with web access | WebFetch | Fetch YouTube page HTML → extract captionTracks → fetch timedtext XML |
+| **Tier 3** | Fully restricted (no network at all) | Text generation only | Ask user to paste transcript (last resort) |
 
 ## How It Works
 
@@ -58,9 +56,14 @@ Three-stage pipeline, with the extraction stage adapting to the environment:
 ```
 
 **Stage 1 -- Extract (environment-dependent):**
-- **Tier 1:** Run `scripts/fetch_transcript.py` to get timestamped transcript segments and video metadata. Uses `youtube-transcript-api` with `yt-dlp` for metadata. Falls back to `markitdown` if primary method fails.
-- **Tier 2:** Use WebFetch on the YouTube URL to extract page content (title, description, any available captions). Supplement with WebSearch for additional context about the video.
-- **Tier 3:** Ask the user to provide the transcript. Suggest these sources: (1) Click "Show transcript" on the YouTube video page, (2) Use a free online transcript extractor, (3) Paste any text they have from the video.
+- **Tier 1:** Run `scripts/fetch_transcript.py` -- works with **zero pip packages**. Uses Python stdlib (`urllib.request` + `xml.etree`) to fetch the YouTube page, extract `captionTracks`, and parse the timedtext XML. If `youtube-transcript-api` or `yt-dlp` are installed, uses them for enhanced extraction, but they are optional.
+- **Tier 2:** Use WebFetch to replicate the same extraction:
+  1. `WebFetch("https://www.youtube.com/watch?v=VIDEO_ID")` → get page HTML
+  2. Find `"captionTracks":` in the HTML → extract the `baseUrl` for the preferred language
+  3. `WebFetch(baseUrl)` → get transcript XML
+  4. Parse `<text start="..." dur="...">content</text>` elements into segments
+  5. Extract metadata from page: `"title"`, `"ownerChannelName"`, `"lengthSeconds"`, `"uploadDate"`
+- **Tier 3 (last resort):** Ask the user to provide the transcript. Suggest: (1) Click "Show transcript" on YouTube, (2) Use an online transcript extractor, (3) Paste any text from the video.
 
 **Stage 2 -- Analyze:** Read the extracted content and produce the structured digest. Synthesize, identify themes, extract claims, build the timeline.
 
@@ -122,31 +125,34 @@ User provides a YouTube URL:
 Summarize this video: https://www.youtube.com/watch?v=VIDEO_ID
 ```
 
-#### Tier 1 Steps (Bash + Network)
-1. Ensure dependencies are installed:
-   ```bash
-   pip install youtube-transcript-api 2>/dev/null || true
-   ```
-2. Run the extraction script:
+#### Tier 1 Steps (Bash + Python -- no pip needed)
+1. Run the extraction script (works with Python stdlib only):
    ```bash
    python scripts/fetch_transcript.py "https://www.youtube.com/watch?v=VIDEO_ID" -o /tmp/transcript.json
    ```
-3. Read the JSON output
-4. Produce the digest following the template above
-5. Save as `video_title_digest.md`
+2. Read the JSON output
+3. Produce the digest following the template above
+4. Save as `video_title_digest.md`
 
-#### Tier 2 Steps (WebFetch / WebSearch)
-1. Use WebFetch to load the YouTube video page and extract any available content (title, description, chapters)
-2. Use WebSearch to find transcripts, summaries, or discussions about the video (search: `"VIDEO_TITLE" transcript` or `youtube VIDEO_ID transcript`)
-3. Combine all gathered content
-4. Produce the digest -- note in the header: `*Digest generated via web extraction. Timestamps may be approximate.*`
+#### Tier 2 Steps (WebFetch)
+1. Fetch the YouTube page:
+   ```
+   WebFetch("https://www.youtube.com/watch?v=VIDEO_ID")
+   ```
+2. In the returned HTML, find `"captionTracks":` and extract the `baseUrl` for the desired language
+3. Fetch the transcript XML:
+   ```
+   WebFetch(baseUrl)
+   ```
+4. Parse the `<text start="..." dur="...">content</text>` elements into timestamped segments
+5. Extract metadata from the page HTML: `"title"`, `"ownerChannelName"`, `"lengthSeconds"`, `"uploadDate"`
+6. Produce the digest from the extracted data
 
-#### Tier 3 Steps (No Tools Available)
+#### Tier 3 Steps (No Network -- last resort)
 1. Tell the user:
-   > I don't have direct access to YouTube in this environment. To create a digest, I need the transcript. You can get it by:
+   > I don't have network access in this environment. To create a digest, I need the transcript:
    > 1. **YouTube app/web:** Open the video → click `···` (More) → **Show transcript** → copy all text
    > 2. **Online tool:** Search "YouTube transcript extractor" and paste the video URL
-   > 3. **Paste anything you have:** Even partial notes or a description will work -- I'll do my best
 2. Once the user provides text, produce the digest from that content
 3. Omit timestamps if they are not present in the provided text
 4. Note in the header: `*Digest generated from user-provided transcript.*`
@@ -202,22 +208,17 @@ When the user provides multiple URLs:
 
 ## Dependencies
 
-Install before first use:
+**Required:** Python 3.8+ (stdlib only -- no pip packages needed).
+
+The extraction script uses `urllib.request` and `xml.etree.ElementTree` from Python's standard library to fetch transcripts directly from YouTube.
+
+**Optional** (enhanced extraction if available):
 ```bash
-pip install youtube-transcript-api
+pip install youtube-transcript-api   # more robust transcript fetching
+pip install yt-dlp                   # richer metadata (chapters, tags, language)
 ```
 
-Optional (for richer metadata -- title, channel, duration, chapters):
-```bash
-pip install yt-dlp
-```
-
-Fallback (if youtube-transcript-api fails):
-```bash
-pip install 'markitdown[youtube-transcription]'
-```
-
-The extraction script checks for these and reports clear error messages if missing.
+The script auto-detects installed packages and uses them when available, but works fully without them.
 
 ## Relationship to Other Skills
 
